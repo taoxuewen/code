@@ -1,0 +1,61 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.installed.cfg
+*.egg
+
+# 虚拟环境
+.venv/
+venv/
+env/
+ENV/
+
+# 测试 / 覆盖率 / 缓存
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# ===== 编辑器 / 系统 =====
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ===== 密钥 / 本地配置（别提交！）=====
+.env
+*.pem
+*.key
+secrets.*
+
+# ===== 容易超过 GitHub 100MB 的大文件 / 产物 =====
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.iso
+*.mp4
+*.mov
+# 模型权重 / 数据集（如确需版本管理，请改用 Git LFS）
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.onnx
+*.parquet
+data/
+datasets/
