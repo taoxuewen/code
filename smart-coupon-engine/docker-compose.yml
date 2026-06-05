@@ -1,0 +1,19 @@
+# 一键起：在线推理 API + Streamlit 面板
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - LLM_ENABLED=${LLM_ENABLED:-false}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    command: uvicorn coupon_engine.api.main:app --host 0.0.0.0 --port 8000
+
+  dashboard:
+    build: .
+    ports:
+      - "8501:8501"
+    environment:
+      - LLM_ENABLED=${LLM_ENABLED:-false}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    command: streamlit run app/dashboard.py --server.address 0.0.0.0 --server.port 8501
