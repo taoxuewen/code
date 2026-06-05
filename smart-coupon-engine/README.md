@@ -5,7 +5,7 @@
 > **我们卖的不是软件，是「省下来的券成本」。**
 >
 > 商业 + 技术方案原文：`../tracardi-growthbook-dify-智能营销引擎方案.md`
-> 项目活文档（新接手请先读）：**[plan.md](plan.md)** 架构与规划 · **[demand.md](demand.md)** 需求 · **[debug.md](debug.md)** 踩坑记录
+> 项目活文档（新接手请先读）：**[plan.md](plan.md)** 架构与规划 · **[demand.md](demand.md)** 需求 · **[debug.md](debug.md)** 踩坑记录 · **[test.md](test.md)** 测试记录
 
 ---
 
@@ -79,7 +79,7 @@ streamlit run app/dashboard.py
 
 ## 怎么测试
 
-测试用 **pytest**，覆盖数据 / 特征 / 模型 / 分配 / 实验 / pipeline 六层，**不依赖真实数据**（fixture 内部即时生成小规模合成数据）。
+测试用 **pytest**，覆盖数据 / 特征 / 模型 / 分配 / 实验 / pipeline 六层，**不依赖真实数据**（fixture 内部即时生成小规模合成数据）。完整清单与历次运行结果见 **[test.md](test.md)**。
 
 ```bash
 pytest                 # 跑全部
