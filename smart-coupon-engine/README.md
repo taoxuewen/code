@@ -115,7 +115,9 @@ pytest -k "experiment"                            # 按关键字筛选
 uvicorn coupon_engine.api.main:app --reload
 # 浏览器打开 http://localhost:8000
 ```
-一个简洁的对客单页：**上传订单数据 + 历史发券数据 → 一键算出「每位客户该发多少券面额」→ 下载 CSV / Excel**。没有数据也能点「用示例数据体验」立即看效果。
+一个简洁的对客单页：**上传 3 张表（客户属性 / 商品属性 / 行为日志）→ 一键算出「每位客户该发多少券面额」→ 下载 CSV / Excel**。没有数据也能点「用示例数据体验」立即看效果。
+
+> 行为日志的「行为类型」需包含 **领券 / 用券**——有「发券对照」才能算出发券带来的增量（uplift）。三表格式详见下方 [数据格式](#数据格式)。
 
 - 数据**仅在内存计算、即用即弃，不落盘、不需任何云存储**（第一版零成本）。
 - 背后接口：
@@ -123,8 +125,8 @@ uvicorn coupon_engine.api.main:app --reload
   | 接口 | 方法 | 作用 |
   |------|------|------|
   | `/` | GET | 对客网页（`web/` 静态页） |
-  | `/api/recommend` | POST | 上传 orders+coupons（可带 budget）→ 现训现算返回推荐表（含 CSV 文本与 xlsx） |
-  | `/api/demo` | GET | 即时合成数据跑通，给没有数据的访客体验 |
+  | `/api/recommend` | POST | 上传 customers+products+behavior 三 CSV（可带 budget）→ 现训现算返回推荐表（含 CSV 文本与 xlsx） |
+  | `/api/demo` | GET | 即时合成 3 表跑通，给没有数据的访客体验 |
 
   输出表列：`客户ID / 推荐券面额 / 是否发放 / 最优面额 / 预期增量购买概率 / 预期成本`。
 
@@ -186,13 +188,15 @@ smart-coupon-engine/
 ├── Dockerfile / docker-compose.yml  # 容器化（API + 面板）
 ├── .env.example                     # LLM 配置样例（复制为 .env）
 │
-├── data/sample/                     # 合成样例 CSV（gen 脚本生成，已 gitignore）
+├── data/sample/                     # 样例 CSV：orders/coupons + customers/products/behavior（gen 生成，已 gitignore）
 │
 ├── src/coupon_engine/               # 核心包，按「层」组织，每层只依赖下层
 │   ├── config.py                    # ▶ 全局配置：面额档位/预算/分组比例/LLM 开关…
 │   ├── data/
-│   │   ├── loader.py                # ▶ 读取+校验订单/优惠券 CSV（数据契约守门）
-│   │   └── synth.py                 # ▶ 合成数据生成器 + 地面真值响应函数
+│   │   ├── loader.py                # ▶ 读取+校验订单/优惠券 CSV（内部2表守门）
+│   │   ├── ingest.py                # ▶ 对外3表(客户/商品/行为)校验+适配成内部2表(D3)
+│   │   ├── synth.py                 # ▶ 合成数据生成器 + 地面真值响应函数
+│   │   └── synth_tables.py          # ▶ 合成3表(客户/商品/行为日志，D3)
 │   │                                #    （内置 Uplift 四象限，让模型有东西可学）
 │   ├── features/rfm.py              # ▶ RFM + 券行为特征；派生 treatment/outcome 标签
 │   ├── models/
@@ -222,28 +226,30 @@ smart-coupon-engine/
 
 ## 数据格式
 
-只需两张 CSV（字段详见 [plan.md 第 4 节](plan.md)）：
+### 对外 3 表（网站上传 / `/api/recommend`，D3 起）
 
-**orders.csv**（订单表）
+列名支持中文/英文别名；完整契约见 [plan.md 4.0](plan.md)。
+
+**customers.csv**（客户基础属性）：`uid`(必) + `年龄/age`、`性别/gender`、`城市/city`、`注册日期/register_date`（选填）
+
+**products.csv**（商品基础属性）：`商品ID/item_id`(必)、`价格/price`(必)、`品类/category`(选)
+
+**behavior.csv**（行为日志）
 | 字段 | 必填 | 说明 |
 |------|------|------|
-| `user_id` | ✅ | 用户标识（脱敏） |
-| `order_id` | ✅ | 订单号 |
-| `order_time` | ✅ | 下单时间 |
-| `amount` | ✅ | 金额（元） |
-| `category` | ❌ | 品类 |
+| `uid` | ✅ | 用户标识 |
+| `行为类型`/`behavior_type` | ✅ | 浏览 / 加购 / 下单 / **领券** / **用券** |
+| `商品ID`/`item_id` | △ | 浏览/加购/下单需填 |
+| `行为时间`/`behavior_time` | ✅ | 行为时间 |
+| `券面额`/`coupon_value` | △ | 领券/用券填 |
+| `券ID`/`coupon_id` | ❌ | 配对领券↔用券，缺省自动生成 |
+| `金额`/`amount` | ❌ | 下单金额，缺省取商品价格 |
 
-**coupons.csv**（优惠券表）
-| 字段 | 必填 | 说明 |
-|------|------|------|
-| `user_id` | ✅ | 用户标识 |
-| `coupon_id` | ✅ | 券 ID |
-| `coupon_value` | ✅ | 面额（元） |
-| `receive_time` | ✅ | 领券时间 |
-| `use_time` | ❌ | 用券时间（空=未核销） |
-| `used` | ❌ | 是否核销（缺省由 use_time 推断） |
+> **领券/用券是必备项**：Uplift 要算"发券比不发券多带来多少购买"，必须有发券对照。领券=treatment、领券后下单=outcome、用券→核销率特征。
 
-> 这两张表任何有微信支付后台的商家都有——这是「低门槛接入」的关键。
+### 内部 2 表（引擎核心 / CLI）
+
+`data/ingest.py` 会把上面 3 表**自动适配**成内部的 `orders` + `coupons` 两张表（下单→订单，领券/用券→优惠券）。CLI（方式 1）直接吃这两张表，字段见 [plan.md 4.1/4.2](plan.md)。生成示例：`python scripts/gen_sample_data.py` 会同时产出两套（`orders/coupons` 与 `customers/products/behavior`）。
 
 ---
 

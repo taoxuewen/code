@@ -59,3 +59,6 @@ secrets.*
 *.parquet
 data/
 datasets/
+# 例外：下面这个「源码包」名叫 data，不是数据集，必须纳入版本管理（只放行 .py）
+!smart-coupon-engine/src/coupon_engine/data/
+!smart-coupon-engine/src/coupon_engine/data/*.py

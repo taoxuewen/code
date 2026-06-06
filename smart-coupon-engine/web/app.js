@@ -58,21 +58,24 @@ function bindDrop(dropId, inputId) {
   return input;
 }
 
-const ordersInput = bindDrop("#drop-orders", "#file-orders");
-const couponsInput = bindDrop("#drop-coupons", "#file-coupons");
+const customersInput = bindDrop("#drop-customers", "#file-customers");
+const productsInput = bindDrop("#drop-products", "#file-products");
+const behaviorInput = bindDrop("#drop-behavior", "#file-behavior");
 
 // ---------- 调用后端 ----------
 async function runUpload() {
   clearError();
-  const o = ordersInput.files[0];
-  const c = couponsInput.files[0];
-  if (!o || !c) {
-    showError("请先把「订单数据」和「历史发券数据」两个 CSV 都上传。");
+  const cu = customersInput.files[0];
+  const pr = productsInput.files[0];
+  const be = behaviorInput.files[0];
+  if (!cu || !pr || !be) {
+    showError("请先把「客户属性」「商品属性」「行为日志」三个 CSV 都上传。");
     return;
   }
   const fd = new FormData();
-  fd.append("orders", o);
-  fd.append("coupons", c);
+  fd.append("customers", cu);
+  fd.append("products", pr);
+  fd.append("behavior", be);
   fd.append("budget", $("#budget").value || "0");
 
   show("loading");

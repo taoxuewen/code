@@ -68,6 +68,16 @@ pytest -k "experiment"                   # 按关键字
 | `test_llm_mock_fallback_always_works` | LLM 不阻塞流程 | 未启用时 `active=False`，文案/解释仍非空 |
 | `test_pipeline_end_to_end` | 端到端跑通 | 产出 experiment 非空、报告含标题、抽奖结果长度对齐 |
 
+### 3.4 三表输入：摄取/适配/推荐 — `tests/test_ingest_tables.py`（5 项，D3）
+
+| 用例 | 验证什么 | 关键断言 |
+|------|---------|---------|
+| `test_generate_tables_schema` | 3 表合成结构正确 | 客户/商品/行为列齐全；行为类型含 **浏览/下单/领券/用券** |
+| `test_to_internal_adapter` | 3 表 → 内部 2 表适配 | 下单→orders（金额>0）、领券/用券→coupons（**有核销**）、派生 x_ 特征 |
+| `test_recommend_from_tables` | 3 表端到端推荐 | 输出列正确；**预期券成本 ≤ 预算** |
+| `test_chinese_column_aliases` | 中文列名可识别 | 1 下单→1 订单、2 领券→2 券、**1 用券被配对核销** |
+| `test_no_coupon_raises` | 无领券/用券应拦截 | 抛 `DataValidationError`（无法估计 uplift） |
+
 > 这三组「关键断言」就是项目的**正确性定义**——它们守护了核心商业假设：
 > 「合成数据里有真实 uplift → 模型能学到 → 预算花在对的人身上 → A/B 证明 D 最优」。
 
@@ -86,6 +96,15 @@ pytest -k "experiment"                   # 按关键字
 ---
 
 ## 5. 运行记录（按时间倒序）
+
+### R3 — 2026-06-06 · 改用 3 表输入（D3）后回归
+- **变更点**：新增 `data/ingest.py`（3 表校验+适配）、`data/synth_tables.py`（3 表合成）、`pipeline.recommend_from_tables`、特征 extra_features 通道；Web/`/api/recommend`/`/api/demo` 切到 3 表输入。
+- **pytest**：`python -m pytest -q` → **20 passed in ~5.5s**（15 旧 + 5 新 `test_ingest_tables.py`），0 失败。
+- **新功能冒烟（手动）**：
+  - `generate_tables`(1200 用户)→ behavior 含 浏览/加购/下单/领券/用券；`to_internal` 出 orders+coupons（核销率≈0.27）+ 8 个 x_ 特征；`recommend_from_tables` 出推荐表，预算约束生效。
+  - TestClient：`GET /api/demo`（3 表合成）→200；`POST /api/recommend`（上传 customers/products/behavior 三 CSV）→200 出 1974 行；缺列→400；**无领券/用券→400 且提示"无法估计 uplift"**。
+  - 真实 uvicorn（:8766）：`/`（含 3 个上传位 drop-customers/products/behavior）、`/app.js`、`/api/demo` 全 200。
+- **结论**：3 表输入端到端可用，券维由「领券/用券」承载，未破坏既有功能。
 
 ### R2 — 2026-06-06 · 新增对客 Web（D2）后回归
 - **变更点**：新增 `web/`（苹果风前端）、`POST /api/recommend`、`GET /api/demo`、静态托管，`pipeline.build_recommendations`；新增依赖 python-multipart、openpyxl。

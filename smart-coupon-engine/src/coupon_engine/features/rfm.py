@@ -115,10 +115,19 @@ def make_training_frame(
     coupons: pd.DataFrame,
     config: Config = DEFAULT_CONFIG,
     cutoff: Optional[datetime] = None,
+    extra_features: Optional[pd.DataFrame] = None,
 ) -> TrainingFrame:
-    """从两张表派生训练样本（特征 + treatment + outcome）。"""
+    """从两张表派生训练样本（特征 + treatment + outcome）。
+
+    extra_features：可选的额外用户级特征（index=user_id），D3 用来并入
+    客户属性 + 行为漏斗特征；按 X.index 对齐、缺失补 0。
+    """
     cutoff = cutoff or _infer_cutoff(coupons, orders)
     X = feature_matrix(orders, coupons, cutoff, config)
+    if extra_features is not None and len(extra_features.columns):
+        extra = extra_features.reindex(X.index).fillna(0.0)
+        extra = extra[[c for c in extra.columns if c not in X.columns]]
+        X = X.join(extra)
 
     treat_coupons = coupons[coupons["receive_time"] >= cutoff]
     treated_users = set(treat_coupons["user_id"])

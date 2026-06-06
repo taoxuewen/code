@@ -21,21 +21,30 @@
     <!-- 上传卡片 -->
     <section id="view-upload" class="card">
       <div class="uploads">
-        <label class="drop" id="drop-orders">
-          <input type="file" id="file-orders" accept=".csv" hidden />
-          <div class="drop__icon">📦</div>
-          <div class="drop__title">订单数据</div>
-          <div class="drop__hint">orders.csv</div>
-          <div class="drop__cols">user_id · order_id · order_time · amount</div>
+        <label class="drop" id="drop-customers">
+          <input type="file" id="file-customers" accept=".csv" hidden />
+          <div class="drop__icon">👤</div>
+          <div class="drop__title">客户基础属性</div>
+          <div class="drop__hint">customers.csv</div>
+          <div class="drop__cols">uid · 年龄 · 性别 · 城市</div>
           <div class="drop__file" data-empty="点击或拖拽上传"></div>
         </label>
 
-        <label class="drop" id="drop-coupons">
-          <input type="file" id="file-coupons" accept=".csv" hidden />
-          <div class="drop__icon">🎟️</div>
-          <div class="drop__title">历史发券数据</div>
-          <div class="drop__hint">coupons.csv</div>
-          <div class="drop__cols">user_id · coupon_id · coupon_value · receive_time</div>
+        <label class="drop" id="drop-products">
+          <input type="file" id="file-products" accept=".csv" hidden />
+          <div class="drop__icon">🛍️</div>
+          <div class="drop__title">商品基础属性</div>
+          <div class="drop__hint">products.csv</div>
+          <div class="drop__cols">商品ID · 价格 · 品类</div>
+          <div class="drop__file" data-empty="点击或拖拽上传"></div>
+        </label>
+
+        <label class="drop" id="drop-behavior">
+          <input type="file" id="file-behavior" accept=".csv" hidden />
+          <div class="drop__icon">📊</div>
+          <div class="drop__title">行为日志</div>
+          <div class="drop__hint">behavior.csv</div>
+          <div class="drop__cols">uid · 行为类型 · 商品ID · 行为时间</div>
           <div class="drop__file" data-empty="点击或拖拽上传"></div>
         </label>
       </div>
@@ -51,7 +60,7 @@
         </div>
       </div>
       <p class="note">
-        数据仅在内存中计算、即用即弃，<strong>不会被保存到服务器</strong>。需要历史「是否发过券 + 之后是否购买」才能算增量，故需两张表。
+        数据仅在内存中计算、即用即弃，<strong>不会被保存到服务器</strong>。行为日志的「行为类型」需包含<strong>领券 / 用券</strong>——有「发券对照」才能算出发券带来的增量。
       </p>
       <p class="error" id="error" hidden></p>
     </section>

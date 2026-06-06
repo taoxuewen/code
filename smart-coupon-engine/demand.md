@@ -21,6 +21,24 @@
 
 ---
 
+## [D3] 改用「客户/商品/行为日志」3 表输入，跑通全流程　—　2026-06-06
+- **原始诉求**：做 3 个示例 CSV——①客户基础属性（年龄、性别…）②商品基础属性（价格…）③行为日志（字段：uid、行为类型「浏览/加购/下单」、商品ID、行为时间）。并改代码，按这 3 表的输入跑通整条流程。
+- **背景**：这是更贴近真实电商/小程序后台导出的数据结构；比 D1/D2 的 orders+coupons 两表更通用、更直观，便于商家对号入座。
+- **关键讨论（券从哪来）**：3 表里没有优惠券信息，而 Uplift 必须有「发券/不发券」对照才能算（项目核心卖点）。**用户已拍板**：在行为日志的「行为类型」中**增加『领券』『用券』两种**，券面额放进可选列。→ 只用 3 张表、设计统一，且保住 Uplift 因果建模。详见对话中的三选一（选项 1）。
+- **讨论结论 / 实现方案**：
+  - **3 张表的数据契约**（列名支持中文/英文别名）：
+    - 客户表 `customers`：`uid`(必) + `age/年龄`、`gender/性别`、`city/城市`、`register_date/注册日期`（均选填）。
+    - 商品表 `products`：`item_id/商品ID`(必)、`price/价格`(必)、`category/品类`(选)。
+    - 行为日志 `behavior`：`uid`(必)、`behavior_type/行为类型`(必，枚举：浏览/加购/下单/**领券/用券**)、`item_id/商品ID`(浏览/加购/下单需填)、`behavior_time/行为时间`(必)、`coupon_value/券面额`(领券/用券填)、`coupon_id/券ID`(选，用于配对领券↔用券，缺省自动生成)、`amount/金额`(下单选填，缺省取商品价格)。
+  - **不重写引擎**：新增「摄取/适配层」`data/ingest.py`，把 3 表**转换成内部既有的 orders + coupons 两张表**（下单→订单；领券/用券→优惠券），下游 特征→模型→预算分配 完全复用。
+  - **新增特征**（把新表的信息真正用起来）：客户属性（年龄、性别 one-hot、注册时长）+ 行为漏斗（浏览数、加购数、加购率、近 30 天浏览、交互商品均价≈价格敏感度代理）。经 `make_training_frame` 的 `extra_features` 通道并入特征矩阵。
+  - **合成数据 + 示例 CSV**：新增 `data/synth_tables.py` 按四象限 uplift 结构生成 3 表；`scripts/gen_sample_data.py` 产出 `data/sample/{customers,products,behavior}.csv`。
+  - **入口切换**：对客 Web 与 `/api/recommend`、`/api/demo` 改为 **3 表输入**（3 个上传位）。内部 `build_recommendations(orders,coupons)` 作为核心保留不变（测试仍覆盖）。
+- **影响范围**：新增 `data/ingest.py`、`data/synth_tables.py`、`pipeline.recommend_from_tables`；改 `features/rfm.py`（extra_features 通道）、`api/main.py`（3 文件上传 + 新 demo）、`web/`（3 上传位）、`scripts/gen_sample_data.py`；plan 数据契约第 4 节、里程碑 M11。
+- **状态**：已交付（2026-06-06）。3 表（客户/商品/行为日志）端到端跑通：`data/ingest.py` 适配成内部 orders+coupons 并派生客户/行为特征；Web 与 `/api/recommend`、`/api/demo` 切到 3 上传位；`scripts/gen_sample_data.py` 产出 `customers/products/behavior.csv` 示例；pytest 20 项全绿（新增 5 项 3 表用例）。
+
+---
+
 ## [D2] 对客 Web 页面：上传行为数据 → 下载每客户推荐券面额　—　2026-06-06
 - **原始诉求**：现在无法直观调试整条链路。把项目做成一个网站：高端但简洁的**苹果风**对客页面；第一版只做一个功能——用户上传客户行为数据（CSV 等格式），输出「每个客户应该发多少券面额」的表（Excel/CSV），可直接下载。文件上传/下载若需购买云服务请告知，或给免费替代方案。
 - **背景**：

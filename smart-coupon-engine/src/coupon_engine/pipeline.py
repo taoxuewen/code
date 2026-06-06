@@ -84,17 +84,25 @@ def build_recommendations(
     orders: pd.DataFrame,
     coupons: pd.DataFrame,
     config: Config = DEFAULT_CONFIG,
+    extra_features: Optional[pd.DataFrame] = None,
 ) -> RecommendResult:
     """对客主路径：在「上传数据」上现训现算，产出每客户推荐券面额表。
 
     复用 特征→模型→预算分配，不做 A/B 模拟（对客不需要、也没有真值）。
+    extra_features：可选额外特征（D3 客户属性 + 行为漏斗），并入特征矩阵。
     输出列（中文，面向商家）：
       客户ID / 推荐券面额 / 是否发放 / 最优面额 / 预期增量购买概率 / 预期成本
     """
     orders = load_orders(orders)
     coupons = load_coupons(coupons)
+    if coupons.empty:
+        from .data.loader import DataValidationError
+        raise DataValidationError(
+            "没有任何「领券/用券」记录，无法估计 uplift（需要发券对照）。"
+            "请在行为日志中包含『领券』『用券』行为。"
+        )
 
-    tf = make_training_frame(orders, coupons, config)
+    tf = make_training_frame(orders, coupons, config, extra_features=extra_features)
     model = train_model(tf, config)
 
     uplift = model.predict_uplift_by_value(tf.X, config.coupon_values)
@@ -139,6 +147,21 @@ def build_recommendations(
         "面额分布": value_dist,
     }
     return RecommendResult(table=table, summary=summary)
+
+
+def recommend_from_tables(
+    customers: pd.DataFrame,
+    products: pd.DataFrame,
+    behavior: pd.DataFrame,
+    config: Config = DEFAULT_CONFIG,
+) -> RecommendResult:
+    """对客主路径（D3 三表输入）：客户/商品/行为日志 → 适配 → 推荐券面额。"""
+    from .data.ingest import to_internal
+
+    data = to_internal(customers, products, behavior)
+    return build_recommendations(
+        data.orders, data.coupons, config, extra_features=data.extra_features
+    )
 
 
 def _alloc_only_report(alloc: AllocationResult, cw: CopyWriter) -> str:

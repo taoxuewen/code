@@ -150,19 +150,21 @@ def _read_csv_upload(file: UploadFile, label: str) -> pd.DataFrame:
 
 @app.post("/api/recommend")
 def recommend(
-    orders: UploadFile = File(..., description="订单数据 CSV"),
-    coupons: UploadFile = File(..., description="历史发券数据 CSV"),
+    customers: UploadFile = File(..., description="客户基础属性 CSV"),
+    products: UploadFile = File(..., description="商品基础属性 CSV"),
+    behavior: UploadFile = File(..., description="行为日志 CSV（含领券/用券）"),
     budget: Optional[float] = Form(None, description="本轮发券总预算（元），缺省用默认"),
 ) -> dict:
-    """对客主路径：上传订单 + 历史券 → 返回每客户推荐券面额。"""
+    """对客主路径（D3 三表输入）：上传 客户/商品/行为日志 → 返回每客户推荐券面额。"""
     from ..data.loader import DataValidationError
-    from ..pipeline import build_recommendations
+    from ..pipeline import recommend_from_tables
 
-    orders_df = _read_csv_upload(orders, "订单数据")
-    coupons_df = _read_csv_upload(coupons, "历史发券数据")
+    customers_df = _read_csv_upload(customers, "客户属性")
+    products_df = _read_csv_upload(products, "商品属性")
+    behavior_df = _read_csv_upload(behavior, "行为日志")
     config = Config.from_overrides(total_budget=budget) if budget else DEFAULT_CONFIG
     try:
-        result = build_recommendations(orders_df, coupons_df, config)
+        result = recommend_from_tables(customers_df, products_df, behavior_df, config)
     except DataValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
@@ -172,14 +174,14 @@ def recommend(
 
 @app.get("/api/demo")
 def demo(n_users: int = 1500, budget: Optional[float] = None) -> dict:
-    """给没有数据的访客：即时合成一份数据跑通，体验完整结果。"""
-    from ..data.synth import generate
-    from ..pipeline import build_recommendations
+    """给没有数据的访客：即时合成 3 表跑通，体验完整结果。"""
+    from ..data.synth_tables import generate_tables
+    from ..pipeline import recommend_from_tables
 
     config = Config.from_overrides(total_budget=budget) if budget else DEFAULT_CONFIG
-    data = generate(n_users=max(100, min(n_users, 5000)),
-                    coupon_values=config.coupon_values)
-    result = build_recommendations(data.orders, data.coupons, config)
+    t = generate_tables(n_users=max(100, min(n_users, 5000)),
+                        coupon_values=config.coupon_values)
+    result = recommend_from_tables(t.customers, t.products, t.behavior, config)
     payload = _result_payload(result, config)
     payload["demo"] = True
     return payload
