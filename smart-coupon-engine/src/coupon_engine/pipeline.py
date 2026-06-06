@@ -73,6 +73,74 @@ def run_pipeline(
     )
 
 
+@dataclass
+class RecommendResult:
+    """对客 Web 的结果：每客户推荐券面额表 + 汇总指标（供 /api/recommend）。"""
+    table: pd.DataFrame   # 中文列，一客户一行
+    summary: dict
+
+
+def build_recommendations(
+    orders: pd.DataFrame,
+    coupons: pd.DataFrame,
+    config: Config = DEFAULT_CONFIG,
+) -> RecommendResult:
+    """对客主路径：在「上传数据」上现训现算，产出每客户推荐券面额表。
+
+    复用 特征→模型→预算分配，不做 A/B 模拟（对客不需要、也没有真值）。
+    输出列（中文，面向商家）：
+      客户ID / 推荐券面额 / 是否发放 / 最优面额 / 预期增量购买概率 / 预期成本
+    """
+    orders = load_orders(orders)
+    coupons = load_coupons(coupons)
+
+    tf = make_training_frame(orders, coupons, config)
+    model = train_model(tf, config)
+
+    uplift = model.predict_uplift_by_value(tf.X, config.coupon_values)
+    alloc = allocate_budget(uplift, config)
+    best = model.predict_best_value(tf.X, config.coupon_values)
+
+    a = alloc.table.reindex(tf.X.index)
+    table = pd.DataFrame({
+        "客户ID": list(tf.X.index),
+        "推荐券面额": a["assigned_value"].to_numpy(),
+        "是否发放": a["selected"].map({True: "是", False: "否"}).to_numpy(),
+        "最优面额": best["best_value"].to_numpy(),
+        "预期增量购买概率": a["exp_uplift"].round(4).to_numpy(),
+        "预期成本": a["exp_cost"].round(2).to_numpy(),
+    })
+    # 把"建议发券、增量高"的客户排到前面，方便商家一眼看重点
+    table = table.sort_values(
+        ["是否发放", "预期增量购买概率"], ascending=[True, False]
+    ).reset_index(drop=True)
+    # "是"在前（中文 ascending 下"否">"是"，故反转）
+    table = pd.concat([
+        table[table["是否发放"] == "是"],
+        table[table["是否发放"] == "否"],
+    ]).reset_index(drop=True)
+
+    sent = table[table["是否发放"] == "是"]
+    value_dist = (
+        sent["推荐券面额"].value_counts().sort_index()
+        .rename_axis("面额").reset_index(name="人数")
+        .to_dict(orient="records")
+    )
+    n = len(table)
+    summary = {
+        "客户总数": int(n),
+        "建议发券人数": int(len(sent)),
+        "发券占比": round(100 * len(sent) / n, 1) if n else 0.0,
+        "总预算": round(config.total_budget, 2),
+        "预期券成本": round(alloc.total_cost, 2),
+        "预算使用率": round(100 * alloc.total_cost / config.total_budget, 1)
+        if config.total_budget else 0.0,
+        "预期总增量(购买概率求和)": round(alloc.total_uplift, 2),
+        "面额分布": value_dist,
+    }
+    return RecommendResult(table=table, summary=summary)
+
+
 def _alloc_only_report(alloc: AllocationResult, cw: CopyWriter) -> str:
     s = alloc.summary()
     return (

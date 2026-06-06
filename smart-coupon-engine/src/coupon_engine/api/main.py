@@ -10,12 +10,16 @@
 """
 from __future__ import annotations
 
+import base64
+import io
 import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from ..allocation.surprise import draw, surprise_weights
@@ -23,6 +27,8 @@ from ..config import DEFAULT_CONFIG, Config
 from ..models.base import UpliftModel
 
 app = FastAPI(title="智能发券引擎 API", version="0.1.0")
+
+WEB_DIR = Path(__file__).resolve().parents[3] / "web"
 
 _MODEL: Optional[UpliftModel] = None
 _CONFIG: Config = DEFAULT_CONFIG
@@ -105,3 +111,84 @@ def allocate(req: ScoreRequest) -> dict:
         "surprise_weights": weights.reset_index(drop=True).to_dict(orient="records"),
         "drawn_value": drawn.reset_index(drop=True).tolist(),
     }
+
+
+# ============================================================================
+# 对客 Web（plan.md 5.10 / 5.12，需求 D2）
+#   上传数据 → 内存现训现算 → 回传每客户推荐券面额（CSV + Excel）
+#   全程不落盘、不持久化，第一版无需任何云存储。
+# ============================================================================
+PREVIEW_ROWS = 50
+
+
+def _result_payload(result, config: Config) -> dict:
+    """把推荐结果打包成前端要的 JSON：汇总 + 预览 + 完整 CSV/xlsx。"""
+    table = result.table
+    csv_text = table.to_csv(index=False)
+    buf = io.BytesIO()
+    table.to_excel(buf, index=False)  # 需要 openpyxl
+    xlsx_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+    return {
+        "ok": True,
+        "summary": result.summary,
+        "coupon_values": config.coupon_values,
+        "columns": list(table.columns),
+        "preview": table.head(PREVIEW_ROWS).to_dict(orient="records"),
+        "n_rows": int(len(table)),
+        "result_csv": csv_text,
+        "result_xlsx_b64": xlsx_b64,
+    }
+
+
+def _read_csv_upload(file: UploadFile, label: str) -> pd.DataFrame:
+    try:
+        raw = file.file.read()
+        return pd.read_csv(io.BytesIO(raw))
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=f"{label} 读取失败：{exc}")
+
+
+@app.post("/api/recommend")
+def recommend(
+    orders: UploadFile = File(..., description="订单数据 CSV"),
+    coupons: UploadFile = File(..., description="历史发券数据 CSV"),
+    budget: Optional[float] = Form(None, description="本轮发券总预算（元），缺省用默认"),
+) -> dict:
+    """对客主路径：上传订单 + 历史券 → 返回每客户推荐券面额。"""
+    from ..data.loader import DataValidationError
+    from ..pipeline import build_recommendations
+
+    orders_df = _read_csv_upload(orders, "订单数据")
+    coupons_df = _read_csv_upload(coupons, "历史发券数据")
+    config = Config.from_overrides(total_budget=budget) if budget else DEFAULT_CONFIG
+    try:
+        result = build_recommendations(orders_df, coupons_df, config)
+    except DataValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"计算失败：{exc}")
+    return _result_payload(result, config)
+
+
+@app.get("/api/demo")
+def demo(n_users: int = 1500, budget: Optional[float] = None) -> dict:
+    """给没有数据的访客：即时合成一份数据跑通，体验完整结果。"""
+    from ..data.synth import generate
+    from ..pipeline import build_recommendations
+
+    config = Config.from_overrides(total_budget=budget) if budget else DEFAULT_CONFIG
+    data = generate(n_users=max(100, min(n_users, 5000)),
+                    coupon_values=config.coupon_values)
+    result = build_recommendations(data.orders, data.coupons, config)
+    payload = _result_payload(result, config)
+    payload["demo"] = True
+    return payload
+
+
+# 静态前端：挂在最后，"/" 直接出对客页面（web/ 不存在时跳过，不影响 API）。
+if WEB_DIR.exists():
+    @app.get("/")
+    def index() -> FileResponse:
+        return FileResponse(str(WEB_DIR / "index.html"))
+
+    app.mount("/", StaticFiles(directory=str(WEB_DIR)), name="web")

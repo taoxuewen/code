@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>智能发券引擎 · 每客户该发多少券</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="page">
+    <!-- 顶部 -->
+    <header class="hero">
+      <div class="hero__badge">Smart Coupon Engine</div>
+      <h1 class="hero__title">把对的券，发给对的人。</h1>
+      <p class="hero__subtitle">
+        上传你的客户行为数据，引擎用因果模型算出<strong>每位客户该发多少面额的券</strong>，
+        在预算内把每一分钱花在最能被打动的人身上。
+      </p>
+    </header>
+
+    <!-- 上传卡片 -->
+    <section id="view-upload" class="card">
+      <div class="uploads">
+        <label class="drop" id="drop-orders">
+          <input type="file" id="file-orders" accept=".csv" hidden />
+          <div class="drop__icon">📦</div>
+          <div class="drop__title">订单数据</div>
+          <div class="drop__hint">orders.csv</div>
+          <div class="drop__cols">user_id · order_id · order_time · amount</div>
+          <div class="drop__file" data-empty="点击或拖拽上传"></div>
+        </label>
+
+        <label class="drop" id="drop-coupons">
+          <input type="file" id="file-coupons" accept=".csv" hidden />
+          <div class="drop__icon">🎟️</div>
+          <div class="drop__title">历史发券数据</div>
+          <div class="drop__hint">coupons.csv</div>
+          <div class="drop__cols">user_id · coupon_id · coupon_value · receive_time</div>
+          <div class="drop__file" data-empty="点击或拖拽上传"></div>
+        </label>
+      </div>
+
+      <div class="controls">
+        <label class="budget">
+          <span class="budget__label">本轮发券预算（元）</span>
+          <input type="number" id="budget" value="60000" min="0" step="1000" />
+        </label>
+        <div class="actions">
+          <button class="btn btn--primary" id="btn-run">开始计算</button>
+          <button class="btn btn--ghost" id="btn-demo">用示例数据体验</button>
+        </div>
+      </div>
+      <p class="note">
+        数据仅在内存中计算、即用即弃，<strong>不会被保存到服务器</strong>。需要历史「是否发过券 + 之后是否购买」才能算增量，故需两张表。
+      </p>
+      <p class="error" id="error" hidden></p>
+    </section>
+
+    <!-- 计算中 -->
+    <section id="view-loading" class="card card--center" hidden>
+      <div class="spinner"></div>
+      <p class="loading-text" id="loading-text">正在训练模型、计算每位客户的最优券面额…</p>
+    </section>
+
+    <!-- 结果 -->
+    <section id="view-result" hidden>
+      <div class="result-head">
+        <h2>计算完成</h2>
+        <button class="btn btn--ghost" id="btn-reset">重新上传</button>
+      </div>
+
+      <div class="cards" id="summary-cards"></div>
+
+      <div class="card">
+        <div class="table-head">
+          <h3>推荐结果预览 <span class="muted" id="preview-count"></span></h3>
+          <div class="downloads">
+            <button class="btn btn--primary" id="btn-csv">下载 CSV</button>
+            <button class="btn btn--dark" id="btn-xlsx">下载 Excel</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="result-table"></table>
+        </div>
+      </div>
+
+      <div class="card" id="dist-card">
+        <h3>面额分布（建议发券的客户）</h3>
+        <div class="dist" id="dist"></div>
+      </div>
+    </section>
+
+    <footer class="foot">
+      智能发券引擎 · 极简版 MVP　|　数据不落盘 · 零云成本
+    </footer>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

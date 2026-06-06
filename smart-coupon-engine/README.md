@@ -107,7 +107,26 @@ pytest -k "experiment"                            # 按关键字筛选
 
 ---
 
-## 怎么运行（三种方式）
+## 怎么运行（多种方式）
+
+### 方式 0：对客网站（苹果风，最直观）⭐
+
+```bash
+uvicorn coupon_engine.api.main:app --reload
+# 浏览器打开 http://localhost:8000
+```
+一个简洁的对客单页：**上传订单数据 + 历史发券数据 → 一键算出「每位客户该发多少券面额」→ 下载 CSV / Excel**。没有数据也能点「用示例数据体验」立即看效果。
+
+- 数据**仅在内存计算、即用即弃，不落盘、不需任何云存储**（第一版零成本）。
+- 背后接口：
+
+  | 接口 | 方法 | 作用 |
+  |------|------|------|
+  | `/` | GET | 对客网页（`web/` 静态页） |
+  | `/api/recommend` | POST | 上传 orders+coupons（可带 budget）→ 现训现算返回推荐表（含 CSV 文本与 xlsx） |
+  | `/api/demo` | GET | 即时合成数据跑通，给没有数据的访客体验 |
+
+  输出表列：`客户ID / 推荐券面额 / 是否发放 / 最优面额 / 预期增量购买概率 / 预期成本`。
 
 ### 方式 1：命令行批量跑（离线，最常用）
 
@@ -187,8 +206,9 @@ smart-coupon-engine/
 │   ├── llm/copywriter.py            # ▶ 券文案/策略解释（无 key 自动降级模板）
 │   ├── report/builder.py            # ▶ 把指标+解释拼成周报 markdown
 │   ├── pipeline.py                  # ▶ 编排层：把上面各层串成端到端流程
-│   └── api/main.py                  # ▶ FastAPI 在线推理服务
+│   └── api/main.py                  # ▶ FastAPI 在线推理 + 对客网站接口(/api/recommend,/api/demo)
 │
+├── web/                             # ▶ 对客网站前端（苹果风，纯静态 index/styles/app）
 ├── app/dashboard.py                 # ▶ Streamlit 交互面板
 ├── scripts/
 │   ├── gen_sample_data.py           # ▶ 生成 data/sample 样例数据

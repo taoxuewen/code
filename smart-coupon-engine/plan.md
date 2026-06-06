@@ -55,6 +55,7 @@
 ┌──────────────────────────────────────────────────────────────────────┐
 │                                                                        │
 │  入口层                                                                 │
+│   ├── web/ + api/main.py   对客网站（苹果风）：上传数据 → 下载推荐券面额   │
 │   ├── app/dashboard.py     Streamlit：上传 CSV → 看报告 → 下载结果       │
 │   ├── api/main.py          FastAPI：在线推理 /score、/allocate          │
 │   └── scripts/run_pipeline.py  CLI：离线批量跑全流程                     │
@@ -117,6 +118,10 @@ smart-coupon-engine/
 │   ├── api/
 │   │   └── main.py           # FastAPI
 │   └── pipeline.py           # 端到端编排
+├── web/                       # 对客网站前端（苹果风，纯静态，无构建）
+│   ├── index.html            # 单页：上传 → 计算中 → 结果下载
+│   ├── styles.css            # 苹果风样式
+│   └── app.js                # 上传/调用 /api/recommend/下载
 ├── app/dashboard.py          # Streamlit
 ├── scripts/
 │   ├── gen_sample_data.py    # 生成 data/sample
@@ -237,9 +242,21 @@ def run_pipeline(orders, coupons, config) -> PipelineResult:
 - `POST /allocate`：传用户列表 + 预算 → 返回每人惊喜券权重 & 抽样面额
 - `GET /health`
 - 在线推理加载离线训练好的模型文件（`model.joblib`）
+- **对客 Web（D2 新增）**：
+  - `GET /` 托管 `web/` 静态页（苹果风单页）
+  - `POST /api/recommend`：multipart 上传 `orders` + `coupons`（可选 `budget`）→ **当场在上传数据上训练并跑 pipeline** → 返回 JSON：汇总指标 + 预览前若干行 + 完整结果的 CSV 文本与 xlsx(base64)。**全程内存处理、不落盘**。
+  - `GET /api/demo`：用 `synth.generate` 即时造一份数据跑通，给没有数据的访客体验。
+  - 与 `/score`、`/allocate` 的区别：后者用**离线预训练模型**做在线推理；`/api/recommend` 用**用户上传的数据现训现算**，是对客主路径。
 
 ### 5.11 app/dashboard.py（Streamlit）
 上传 orders.csv + coupons.csv → 跑 pipeline → 展示周报、uplift 四象限分布、各组对比柱状图 → 下载预测结果 CSV。无数据时一键「用样例数据」。
+
+### 5.12 web/（对客网站前端，D2 新增）
+苹果风纯静态单页（无构建步骤），面向商家/访客：
+- 交互三态：**上传**（两个拖拽上传位：订单数据 / 历史发券数据，可调预算，或点「用示例数据体验」）→ **计算中**（loading）→ **结果**（汇总卡片：覆盖客户数/建议发券人数/预算用量/预期增量；结果预览表；CSV/Excel 下载按钮）。
+- 输出表（对客，中文列）：`客户ID / 推荐券面额 / 是否发放 / 最优面额 / 预期增量购买概率 / 预期成本`。其中"推荐券面额"为预算约束下实际建议发放的面额（不建议发则为 0），"最优面额"为不考虑预算时 uplift 最大的面额。
+- 设计语言：`-apple-system` 系统字体、大留白、单一主色、圆角 + 轻投影、克制动效。
+- 下载实现：前端把后端回传的 CSV 文本 / xlsx(base64) 包成 Blob 触发下载，无需服务端存储。
 
 ---
 
@@ -276,6 +293,7 @@ def run_pipeline(orders, coupons, config) -> PipelineResult:
 | M7 | pipeline 编排 + CLI 跑通 | ✅ |
 | M8 | FastAPI + Streamlit | ✅ |
 | M9 | 测试 + Docker 打包 + 端到端验证 | ✅ |
+| M10 | 对客 Web 网站（苹果风）：上传数据 → 下载每客户推荐券面额（D2） | ✅ |
 
 > **初版已跑通（2026-06-05）**：`pytest` 15 项全绿；CLI 端到端跑出周报，D 组（智能发券）
 > 增量 GMV ¥9,615、ROI 1.65、**统计显著（p≈0.0014）**，且较随机发券节约 18% 券成本；
@@ -314,3 +332,4 @@ def run_pipeline(orders, coupons, config) -> PipelineResult:
 
 - **2026-06-05**：初始化。确定初版做极简版 MVP，定义架构、目录、数据契约、9 个里程碑。（by Claude）
 - **2026-06-05**：初版 M0-M9 全部完成并跑通。新增决策 9.4（面额作为 treatment 特征喂入处理模型）、9.5（惊喜券保底权重）。实测结果见里程碑表下方说明。（by Claude）
+- **2026-06-06**：受理需求 D2——对客苹果风 Web 网站。新增入口层 `web/` 与 `POST /api/recommend`、`GET /api/demo`（内存直传直回，第一版不需任何云存储）；`pipeline.py` 新增推荐表构建函数；新增依赖 python-multipart、openpyxl。架构图/目录/5.10-5.12/里程碑 M10 同步更新。（by Claude）

@@ -87,6 +87,16 @@ pytest -k "experiment"                   # 按关键字
 
 ## 5. 运行记录（按时间倒序）
 
+### R2 — 2026-06-06 · 新增对客 Web（D2）后回归
+- **变更点**：新增 `web/`（苹果风前端）、`POST /api/recommend`、`GET /api/demo`、静态托管，`pipeline.build_recommendations`；新增依赖 python-multipart、openpyxl。
+- **pytest 回归**：`python -m pytest -q` → **15 passed in 3.56s**，0 失败（既有用例未受影响）。
+- **新功能冒烟（手动，尚未自动化）**：
+  - `build_recommendations`（800 合成用户）：产出 789 行推荐表，列＝客户ID/推荐券面额/是否发放/最优面额/预期增量购买概率/预期成本，汇总指标齐全。
+  - TestClient：`GET /`→200(html)、`GET /api/demo`→200（返回 csv+xlsx，xlsx 可被 openpyxl 打开且表头正确）、`POST /api/recommend`（上传两 CSV）→200、坏数据（缺列）→**400 且报错信息友好**。
+  - 真实 uvicorn（:8765）：`/`、`/styles.css`、`/app.js`、`/api/demo`、`/health` 全部 200。
+- **结论**：对客 Web 主路径端到端可用，未破坏既有功能。
+- **待补**：把 `/api/recommend`、`/api/demo`、坏数据 400 写成 pytest 自动化用例（见 §4 缺口）。
+
 ### R1 — 2026-06-06 · 初版全量通过
 - **命令**：`pytest -v`
 - **环境**：Python 3.11.6，pytest 9.0.3，platform linux
