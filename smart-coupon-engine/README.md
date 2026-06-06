@@ -6,6 +6,8 @@
 >
 > 商业 + 技术方案原文：`../tracardi-growthbook-dify-智能营销引擎方案.md`
 > 项目活文档（新接手请先读）：**[plan.md](plan.md)** 架构与规划 · **[demand.md](demand.md)** 需求 · **[debug.md](debug.md)** 踩坑记录 · **[test.md](test.md)** 测试记录
+>
+> 🪟 **在 Windows 上运行？** 看专门的傻瓜手册 **[RUN_ON_WINDOWS.md](RUN_ON_WINDOWS.md)**（人或 AI 都能照着一步步执行，含一键脚本 `start_windows.bat` 与常见问题速查）。
 
 ---
 
@@ -182,7 +184,9 @@ docker compose up        # API → :8000，面板 → :8501
 
 ```
 smart-coupon-engine/
-├── plan.md / demand.md / debug.md   # 三份活文档（架构 / 需求 / 踩坑）
+├── plan.md / demand.md / debug.md / test.md   # 活文档（架构 / 需求 / 踩坑 / 测试）
+├── RUN_ON_WINDOWS.md                # Windows 运行手册（人/AI 照做）
+├── start_windows.bat                # Windows 一键启动脚本
 ├── README.md                        # 本文件
 ├── pyproject.toml / requirements.txt# 包与依赖（src 布局）
 ├── Dockerfile / docker-compose.yml  # 容器化（API + 面板）

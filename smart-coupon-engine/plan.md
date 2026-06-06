@@ -7,6 +7,7 @@
 > - `demand.md` — 需求记录（用户每次提的需求 + 讨论结论）
 > - `debug.md` — bug 记录（每次报错 → 定位 → 修复）
 > - `test.md` — 测试记录（所有用例清单 + 历次运行结果）
+> - `RUN_ON_WINDOWS.md` — Windows 运行手册（人/AI 可直接照做；含一键脚本与排错表）
 > - 业务方案原文：`../tracardi-growthbook-dify-智能营销引擎方案.md`
 
 ---
