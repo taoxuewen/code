@@ -127,8 +127,10 @@ smart-coupon-engine/
 │   └── app.js                # 上传/调用 /api/recommend/下载
 ├── app/dashboard.py          # Streamlit
 ├── scripts/
-│   ├── gen_sample_data.py    # 生成 data/sample
-│   └── run_pipeline.py       # CLI 跑全流程
+│   ├── gen_sample_data.py    # 生成 data/sample（2表+3表）
+│   ├── run_pipeline.py       # CLI 跑全流程
+│   └── trace_run.py          # 全链路调试追踪：打印输入→输出每步中间结果（D5）
+├── sample_run_trace.md        # trace_run.py 产出的标准调试日志样例（D5）
 └── tests/                    # pytest
 ```
 
@@ -378,4 +380,6 @@ def run_pipeline(orders, coupons, config) -> PipelineResult:
 - **2026-06-05**：初始化。确定初版做极简版 MVP，定义架构、目录、数据契约、9 个里程碑。（by Claude）
 - **2026-06-05**：初版 M0-M9 全部完成并跑通。新增决策 9.4（面额作为 treatment 特征喂入处理模型）、9.5（惊喜券保底权重）。实测结果见里程碑表下方说明。（by Claude）
 - **2026-06-06**：受理需求 D2——对客苹果风 Web 网站。新增入口层 `web/` 与 `POST /api/recommend`、`GET /api/demo`（内存直传直回，第一版不需任何云存储）；`pipeline.py` 新增推荐表构建函数；新增依赖 python-multipart、openpyxl。架构图/目录/5.10-5.12/里程碑 M10 同步更新。（by Claude）
+- **2026-06-06**：受理需求 D5——新增全链路调试追踪脚本 `scripts/trace_run.py`，把示例数据输入→输出每步中间结果（含 uplift 模型内部：对照概率/各面额处理概率/差值）写入 `sample_run_trace.md`。记录：小样本下 uplift 噪声大，调试/演示建议 ≥3000 用户。（by Claude）
+- **2026-06-06**：受理需求 D4——Windows 运行手册 `RUN_ON_WINDOWS.md` + `start_windows.bat`；debug.md 补录 B1（.gitignore 误伤 data 包）。（by Claude）
 - **2026-06-06**：受理需求 D3——对外输入改为「客户/商品/行为日志」3 表。新增数据契约 4.0、适配层 `data/ingest.py`、3 表合成器 `data/synth_tables.py`、`pipeline.recommend_from_tables`、特征 extra_features 通道；Web/`/api/recommend`/`/api/demo` 切到 3 表（3 上传位）。决策 9.6（适配层不重写引擎、领券/用券承载 treatment）。里程碑 M11。（by Claude）

@@ -8,6 +8,8 @@
 > 项目活文档（新接手请先读）：**[plan.md](plan.md)** 架构与规划 · **[demand.md](demand.md)** 需求 · **[debug.md](debug.md)** 踩坑记录 · **[test.md](test.md)** 测试记录
 >
 > 🪟 **在 Windows 上运行？** 看专门的傻瓜手册 **[RUN_ON_WINDOWS.md](RUN_ON_WINDOWS.md)**（人或 AI 都能照着一步步执行，含一键脚本 `start_windows.bat` 与常见问题速查）。
+>
+> 🔍 **想看链路中间发生了什么？** 跑 `python scripts/trace_run.py`，会把示例数据从输入到输出的每一步（含 uplift 模型内部：对照概率/各面额处理概率/差值）打成一份可读日志 **[sample_run_trace.md](sample_run_trace.md)**。
 
 ---
 
