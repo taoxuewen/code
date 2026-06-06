@@ -78,6 +78,16 @@ pytest -k "experiment"                   # 按关键字
 | `test_chinese_column_aliases` | 中文列名可识别 | 1 下单→1 订单、2 领券→2 券、**1 用券被配对核销** |
 | `test_no_coupon_raises` | 无领券/用券应拦截 | 抛 `DataValidationError`（无法估计 uplift） |
 
+### 3.5 Uplift 模型评估 — `tests/test_evaluate.py`（5 项，D6）
+
+| 用例 | 验证什么 | 关键断言 |
+|------|---------|---------|
+| `test_qini_positive_for_good_ranking` | 好排序得正 Qini | Qini系数>0、AUUC>0 |
+| `test_qini_near_zero_for_random_ranking` | 乱排序更差 | 好排序 Qini > 打乱后 Qini |
+| `test_quantile_table_shape_and_fields` | 分位表结构 | 10 档、字段齐；**第1档实际uplift ≥ 末档** |
+| `test_evaluation_attached_and_available` | 评估接入推荐结果 | `RecommendResult.evaluation.可用=True`，含 Qini/AUUC/分位表/样本/提升倍数；AUC∈[0,1] |
+| `test_evaluation_unavailable_on_tiny_data` | 小样本优雅降级 | 样本不足时 `可用=False`（不报错） |
+
 > 这三组「关键断言」就是项目的**正确性定义**——它们守护了核心商业假设：
 > 「合成数据里有真实 uplift → 模型能学到 → 预算花在对的人身上 → A/B 证明 D 最优」。
 
@@ -90,12 +100,19 @@ pytest -k "experiment"                   # 按关键字
 **暂未覆盖**（后续补，登记备查）：
 - FastAPI 接口的自动化用例（目前靠 TestClient 手动冒烟，见运行记录 R1）。
 - Streamlit 面板（目前靠 `py_compile` + 手动启动验证）。
-- 模型评估指标（Qini/AUUC）——待 DragonNet 阶段一起加。
+- ~~模型评估指标（Qini/AUUC）~~ ✅ 已在 D6 加入（`test_evaluate.py`）。
 - 极端/脏数据（空表、全未核销、单一用户）的边界用例。
 
 ---
 
 ## 5. 运行记录（按时间倒序）
+
+### R4 — 2026-06-07 · 新增 uplift 模型评估（D6）后回归
+- **变更点**：新增 `models/evaluate.py`（Qini/AUUC/分位uplift/子模型AUC）、`tests/test_evaluate.py`；`build_recommendations` 增 evaluate 选项；Web 结果页加「模型评估」卡片；trace_run 增评估节。
+- **pytest**：`python -m pytest -q` → **25 passed in ~12s**（20 + 5 新），0 失败。
+- **修的坑**：① numpy 2.x 移除 `np.trapz` → 改手写梯形积分；② `np.array_split` 把 DataFrame 转成 ndarray 致字符串索引报错 → 改对行号分组再 iloc。
+- **冒烟**：3000~5000 用户下评估稳定（Qini>0、Top档提升 1.8~4.5×、子模型 AUC≈0.72~0.78）；2500 以下偶现 Qini 翻负 → demo 默认改 4000。TestClient `/api/demo` 返回 `evaluation`；真实 uvicorn 页面含 `eval-card/eval-metrics/eval-deciles`。
+- **结论**：评估指标正确接入并展示，未破坏既有功能。
 
 ### R3 — 2026-06-06 · 改用 3 表输入（D3）后回归
 - **变更点**：新增 `data/ingest.py`（3 表校验+适配）、`data/synth_tables.py`（3 表合成）、`pipeline.recommend_from_tables`、特征 extra_features 通道；Web/`/api/recommend`/`/api/demo` 切到 3 表输入。

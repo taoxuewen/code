@@ -21,6 +21,24 @@
 
 ---
 
+## [D6] 页面展示 uplift 模型评估指标 + 评估代码　—　2026-06-07
+- **原始诉求**：页面上显示 uplift 模型构建好后的评估指标，并写好评估代码。
+- **背景**：之前只输出推荐结果，看不到"模型本身好不好"。需要可量化、可展示的因果评估，让商家/自己判断模型是否可信。
+- **讨论结论 / 实现**：
+  - 难点：uplift 无直接真值（每个用户只能观测发券或不发券之一）。采用**因果评估**：在留出测试集上用观测 treatment/outcome 衡量"模型是否把券排给对的人"。
+  - 新增 `models/evaluate.py`：
+    - **分位 uplift 表**（按预测 uplift 降序分 10 档，看每档真实"处理组购买率−对照组购买率"，理想单调递减）——最直观。
+    - **Qini 曲线 / Qini 系数 / AUUC**（累计增益，单一分数，>0 优于随机；手写梯形积分兼容 numpy 1.x/2.x）。
+    - **子模型 AUC**（对照/处理模型判别力）。
+  - `pipeline.build_recommendations` 增 `evaluate=True`：拆 30% 留出集、train 上拟合评估专用模型、test 上评估（不影响对客模型），结果放进 `RecommendResult.evaluation`。
+  - API `_result_payload` 带上 `evaluation`；Web 结果页新增「Uplift 模型评估」卡片：指标卡（Top档提升倍数/Qini/AUUC/子模型AUC）+ 分位 uplift 柱状（正蓝负红、0 居中）+ 文字解读。
+  - `scripts/trace_run.py` 增第 11 节同步打印评估；`sample_run_trace.md` 重生成。
+  - **样本量观察**：评估在小样本下方差大、Qini 可能翻负。故 `/api/demo` 默认用户数 1500→**4000**，让展示更稳定可信。`evaluate.py` 设 `MIN_EVAL_SAMPLES=200`，不足则标记"不可用"而非报错。
+- **影响范围**：新增 `models/evaluate.py`、`tests/test_evaluate.py`；改 `pipeline.py`、`api/main.py`、`web/*`、`scripts/trace_run.py`。plan 5.4/里程碑 M12。
+- **状态**：已交付（2026-06-07）。pytest 25 项全绿（新增 5 项评估用例）。
+
+---
+
 ## [D5] 全链路调试追踪日志：示例数据从输入到输出（含 uplift 模型内部）　—　2026-06-06
 - **原始诉求**：想看示例数据从输入到输出、包括中间 uplift 模型调用得到的所有中间流程，打一份详细日志到一个文件里，看看一次本地调试整个中间日志长啥样。
 - **背景**：之前只能看到最终结果，看不清链路中间发生了什么；需要一份"可读的全过程快照"用于理解/排查/给新 AI 讲解。

@@ -131,6 +131,7 @@ def _result_payload(result, config: Config) -> dict:
     return {
         "ok": True,
         "summary": result.summary,
+        "evaluation": result.evaluation,
         "coupon_values": config.coupon_values,
         "columns": list(table.columns),
         "preview": table.head(PREVIEW_ROWS).to_dict(orient="records"),
@@ -173,13 +174,16 @@ def recommend(
 
 
 @app.get("/api/demo")
-def demo(n_users: int = 1500, budget: Optional[float] = None) -> dict:
-    """给没有数据的访客：即时合成 3 表跑通，体验完整结果。"""
+def demo(n_users: int = 4000, budget: Optional[float] = None) -> dict:
+    """给没有数据的访客：即时合成 3 表跑通，体验完整结果。
+
+    默认 4000 用户：小样本下 uplift 评估方差大、易翻负，4000 起评估更稳定可信。
+    """
     from ..data.synth_tables import generate_tables
     from ..pipeline import recommend_from_tables
 
     config = Config.from_overrides(total_budget=budget) if budget else DEFAULT_CONFIG
-    t = generate_tables(n_users=max(100, min(n_users, 5000)),
+    t = generate_tables(n_users=max(100, min(n_users, 8000)),
                         coupon_values=config.coupon_values)
     result = recommend_from_tables(t.customers, t.products, t.behavior, config)
     payload = _result_payload(result, config)

@@ -134,6 +134,8 @@ uvicorn coupon_engine.api.main:app --reload
 
   输出表列：`客户ID / 推荐券面额 / 是否发放 / 最优面额 / 预期增量购买概率 / 预期成本`。
 
+  结果页还会展示 **Uplift 模型评估**（在 30% 留出测试集上）：Top 档提升倍数、Qini 系数、AUUC、子模型 AUC，以及「分位 uplift 柱状图」——直观判断模型是否把券发给了对的人。评估代码见 `src/coupon_engine/models/evaluate.py`。
+
 ### 方式 1：命令行批量跑（离线，最常用）
 
 ```bash

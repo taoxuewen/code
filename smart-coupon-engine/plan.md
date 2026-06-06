@@ -108,6 +108,7 @@ smart-coupon-engine/
 │   ├── models/
 │   │   ├── base.py           # UpliftModel 抽象基类
 │   │   ├── two_model.py      # 双模型 uplift（默认）
+│   │   ├── evaluate.py       # uplift 评估：Qini/AUUC/分位uplift/子模型AUC（D6）
 │   │   └── registry.py       # 模型注册/工厂
 │   ├── allocation/
 │   │   ├── budget.py         # 预算约束下的面额分配
@@ -241,6 +242,7 @@ smart-coupon-engine/
   - `predict_uplift_by_value(X, values) -> DataFrame`（每面额一列 uplift，初版用面额作为 treatment 强度的简化建模）
 - **two_model.py**：分别对 treat / control 组训练分类器（默认 `GradientBoostingClassifier`），uplift = 两者预测概率之差。简单、稳、无重依赖。
 - **registry.py**：`get_model(name)` 工厂；初版注册 `"two_model"`，预留 `"dragonnet"`（方案指出 DragonNet 效果最优 +35%，作为下一阶段升级点，需 torch）。
+- **evaluate.py（D6）**：uplift 因果评估。在 30% 留出测试集上用观测 treatment/outcome 算：分位 uplift 表（按预测降序分 10 档看真实 uplift，理想单调递减）、Qini 系数 / AUUC（单一分数，>0 优于随机）、子模型 AUC。`build_recommendations(evaluate=True)` 调用并把结果放进 `RecommendResult.evaluation`，对客 Web 结果页展示。注：小样本方差大（Qini 可能翻负），故评估设 `MIN_EVAL_SAMPLES=200`、demo 默认 4000 用户。
 
 ### 5.5 allocation/
 - **budget.py**：全局预算约束求解（方案 3.4「双层优化」）
@@ -340,6 +342,7 @@ def run_pipeline(orders, coupons, config) -> PipelineResult:
 | M9 | 测试 + Docker 打包 + 端到端验证 | ✅ |
 | M10 | 对客 Web 网站（苹果风）：上传数据 → 下载每客户推荐券面额（D2） | ✅ |
 | M11 | 改用「客户/商品/行为日志」3 表输入，适配层 + 新特征 + 跑通（D3） | ✅ |
+| M12 | uplift 模型评估（Qini/AUUC/分位uplift）+ 页面展示（D6） | ✅ |
 
 > **初版已跑通（2026-06-05）**：`pytest` 15 项全绿；CLI 端到端跑出周报，D 组（智能发券）
 > 增量 GMV ¥9,615、ROI 1.65、**统计显著（p≈0.0014）**，且较随机发券节约 18% 券成本；
@@ -380,6 +383,7 @@ def run_pipeline(orders, coupons, config) -> PipelineResult:
 - **2026-06-05**：初始化。确定初版做极简版 MVP，定义架构、目录、数据契约、9 个里程碑。（by Claude）
 - **2026-06-05**：初版 M0-M9 全部完成并跑通。新增决策 9.4（面额作为 treatment 特征喂入处理模型）、9.5（惊喜券保底权重）。实测结果见里程碑表下方说明。（by Claude）
 - **2026-06-06**：受理需求 D2——对客苹果风 Web 网站。新增入口层 `web/` 与 `POST /api/recommend`、`GET /api/demo`（内存直传直回，第一版不需任何云存储）；`pipeline.py` 新增推荐表构建函数；新增依赖 python-multipart、openpyxl。架构图/目录/5.10-5.12/里程碑 M10 同步更新。（by Claude）
+- **2026-06-07**：受理需求 D6——uplift 模型评估。新增 `models/evaluate.py`（Qini/AUUC/分位uplift/子模型AUC，因果评估，留出测试集）；`build_recommendations` 增 evaluate 选项并入 `RecommendResult.evaluation`；Web 结果页新增「模型评估」卡片（含分位 uplift 柱）；trace_run 增评估节。记录：小样本评估方差大，demo 默认用户数提到 4000。里程碑 M12。（by Claude）
 - **2026-06-06**：受理需求 D5——新增全链路调试追踪脚本 `scripts/trace_run.py`，把示例数据输入→输出每步中间结果（含 uplift 模型内部：对照概率/各面额处理概率/差值）写入 `sample_run_trace.md`。记录：小样本下 uplift 噪声大，调试/演示建议 ≥3000 用户。（by Claude）
 - **2026-06-06**：受理需求 D4——Windows 运行手册 `RUN_ON_WINDOWS.md` + `start_windows.bat`；debug.md 补录 B1（.gitignore 误伤 data 包）。（by Claude）
 - **2026-06-06**：受理需求 D3——对外输入改为「客户/商品/行为日志」3 表。新增数据契约 4.0、适配层 `data/ingest.py`、3 表合成器 `data/synth_tables.py`、`pipeline.recommend_from_tables`、特征 extra_features 通道；Web/`/api/recommend`/`/api/demo` 切到 3 表（3 上传位）。决策 9.6（适配层不重写引擎、领券/用券承载 treatment）。里程碑 M11。（by Claude）

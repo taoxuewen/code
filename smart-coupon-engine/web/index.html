@@ -80,6 +80,16 @@
 
       <div class="cards" id="summary-cards"></div>
 
+      <div class="card" id="eval-card" hidden>
+        <div class="table-head">
+          <h3>Uplift 模型评估 <span class="muted">（在 30% 留出测试集上）</span></h3>
+        </div>
+        <p class="eval-note" id="eval-note"></p>
+        <div class="cards" id="eval-metrics"></div>
+        <div id="eval-deciles" class="deciles"></div>
+        <p class="eval-foot">分档说明：按模型预测的 uplift 从高到低把测试客户分 10 档，柱子是各档<strong>真实</strong> uplift（处理组购买率 − 对照组购买率）。理想情况下从上到下递减——说明模型确实把券排给了更该发的人。</p>
+      </div>
+
       <div class="card">
         <div class="table-head">
           <h3>推荐结果预览 <span class="muted" id="preview-count"></span></h3>

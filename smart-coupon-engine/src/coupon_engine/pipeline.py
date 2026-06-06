@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import joblib
+import numpy as np
 import pandas as pd
 
 from .allocation.budget import AllocationResult, allocate_budget
@@ -78,6 +79,39 @@ class RecommendResult:
     """对客 Web 的结果：每客户推荐券面额表 + 汇总指标（供 /api/recommend）。"""
     table: pd.DataFrame   # 中文列，一客户一行
     summary: dict
+    evaluation: Optional[dict] = None  # uplift 模型评估指标（D6），样本不足时为不可用
+
+
+def _holdout_evaluation(tf: TrainingFrame, config: Config) -> Optional[dict]:
+    """留出集评估 uplift 模型（D6）：拆 train/test，train 上拟合一个评估专用模型，
+    在 test 上用观测 treatment/outcome 算 Qini/AUUC/分位 uplift。不影响对客模型。"""
+    from .models.evaluate import MIN_EVAL_SAMPLES, evaluate_uplift
+
+    n = len(tf.X)
+    if n < MIN_EVAL_SAMPLES:
+        return {"可用": False, "说明": f"样本不足（{n} < {MIN_EVAL_SAMPLES}），跳过模型评估。"}
+    try:
+        from sklearn.model_selection import train_test_split
+
+        idx = np.arange(n)
+        strat = tf.treatment.to_numpy() if tf.treatment.nunique() == 2 else None
+        tr, te = train_test_split(idx, test_size=0.3, random_state=config.random_seed,
+                                  stratify=strat)
+        Xtr, Xte = tf.X.iloc[tr], tf.X.iloc[te]
+        eval_model = train_model(
+            TrainingFrame(
+                X=Xtr, treatment=tf.treatment.iloc[tr], outcome=tf.outcome.iloc[tr],
+                treat_value=tf.treat_value.iloc[tr], feature_cols=tf.feature_cols,
+                cutoff=tf.cutoff,
+            ),
+            config,
+        )
+        return evaluate_uplift(
+            eval_model, Xte, tf.treatment.iloc[te], tf.outcome.iloc[te],
+            tf.treat_value.iloc[te], config,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return {"可用": False, "说明": f"评估出错：{exc}"}
 
 
 def build_recommendations(
@@ -85,11 +119,13 @@ def build_recommendations(
     coupons: pd.DataFrame,
     config: Config = DEFAULT_CONFIG,
     extra_features: Optional[pd.DataFrame] = None,
+    evaluate: bool = True,
 ) -> RecommendResult:
     """对客主路径：在「上传数据」上现训现算，产出每客户推荐券面额表。
 
     复用 特征→模型→预算分配，不做 A/B 模拟（对客不需要、也没有真值）。
     extra_features：可选额外特征（D3 客户属性 + 行为漏斗），并入特征矩阵。
+    evaluate：是否额外做留出集 uplift 模型评估（D6），结果放进 RecommendResult.evaluation。
     输出列（中文，面向商家）：
       客户ID / 推荐券面额 / 是否发放 / 最优面额 / 预期增量购买概率 / 预期成本
     """
@@ -103,6 +139,9 @@ def build_recommendations(
         )
 
     tf = make_training_frame(orders, coupons, config, extra_features=extra_features)
+
+    evaluation = _holdout_evaluation(tf, config) if evaluate else None
+
     model = train_model(tf, config)
 
     uplift = model.predict_uplift_by_value(tf.X, config.coupon_values)
@@ -146,7 +185,7 @@ def build_recommendations(
         "预期总增量(购买概率求和)": round(alloc.total_uplift, 2),
         "面额分布": value_dist,
     }
-    return RecommendResult(table=table, summary=summary)
+    return RecommendResult(table=table, summary=summary, evaluation=evaluation)
 
 
 def recommend_from_tables(

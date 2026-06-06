@@ -233,4 +233,38 @@ tbody tr:hover { background: #fafafc; }
 .dist__fill { height: 100%; background: var(--blue); border-radius: 980px; transition: width .5s ease; }
 .dist__count { width: 90px; text-align: right; font-size: 13px; color: var(--ink-soft); }
 
+/* ---------- 模型评估 ---------- */
+.eval-note { font-size: 14px; color: var(--ink-soft); margin: 0 0 18px; }
+.eval-foot { font-size: 12px; color: var(--ink-soft); margin: 16px 0 0; }
+.eval-foot strong { color: var(--ink); }
+#eval-metrics { margin-bottom: 22px; }
+
+.deciles { display: flex; flex-direction: column; gap: 8px; }
+.decile {
+  display: grid;
+  grid-template-columns: 64px 1fr 70px;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+.decile__label { color: var(--ink-soft); }
+.decile__track {
+  position: relative;
+  height: 16px;
+  background: #f0f0f3;
+  border-radius: 980px;
+}
+/* 中线（0 点）在 50% 处，正向往右、负向往左 */
+.decile__track::before {
+  content: "";
+  position: absolute; left: 50%; top: -3px; bottom: -3px;
+  width: 1px; background: #d2d2d7;
+}
+.decile__bar {
+  position: absolute; top: 0; height: 100%; border-radius: 980px;
+}
+.decile__bar.pos { left: 50%; background: var(--blue); }
+.decile__bar.neg { right: 50%; background: var(--red); }
+.decile__val { text-align: right; font-variant-numeric: tabular-nums; }
+
 .foot { text-align: center; color: var(--ink-soft); font-size: 13px; margin-top: 48px; }

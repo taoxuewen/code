@@ -231,7 +231,33 @@ def main() -> None:
     log(sent["推荐券面额"].value_counts().sort_index().to_string())
     log("```")
 
-    section("✅ 全链路结束：输入 3 表 → 适配 → 特征/打标 → Uplift 模型 → 预算分配 → 惊喜券 → 输出表")
+    # ---- 11. 模型评估（留出测试集）----
+    section("11. Uplift 模型评估（30% 留出测试集，Qini / AUUC / 分位 uplift）")
+    from coupon_engine.pipeline import _holdout_evaluation
+
+    ev = _holdout_evaluation(tf, config)
+    if not ev.get("可用"):
+        log(f"\n{ev.get('说明', '不可用')}")
+    else:
+        log("```")
+        log(f"测试集样本   : {ev['样本']}")
+        log(f"Qini 系数    : {ev['Qini系数']}   （>0 优于随机发券）")
+        log(f"AUUC         : {ev['AUUC']}")
+        log(f"整体实际uplift: {ev['整体实际uplift']}")
+        log(f"Top档实际uplift: {ev['Top档实际uplift']}  → 提升倍数 {ev['提升倍数']}×")
+        log(f"对照模型 AUC : {ev['对照模型AUC']}　处理模型 AUC : {ev['处理模型AUC']}")
+        log("")
+        log("# 分位 uplift 表（按预测 uplift 降序分 10 档，理想从上到下递减）：")
+        log(f"{'分位':>6} | {'人数':>5} | {'预测uplift':>10} | {'实际uplift':>10}")
+        log("-" * 44)
+        for r in ev["分位表"]:
+            au = r["实际uplift"]
+            log(f"{r['分位']:>6} | {r['人数']:>5} | {r['预测uplift']:>+10.4f} | "
+                f"{(f'{au:+.4f}' if au is not None else 'NA'):>10}")
+        log("```")
+        log("> 解读：Top 档真实 uplift 明显高于整体平均、且高分档 > 低分档，说明模型确实把券排给了更该发的人。")
+
+    section("✅ 全链路结束：输入 3 表 → 适配 → 特征/打标 → Uplift 模型 → 模型评估 → 预算分配 → 惊喜券 → 输出表")
 
     out_path.write_text("\n".join(_BUF), encoding="utf-8")
     print(f"已生成全链路追踪日志：{out_path}")

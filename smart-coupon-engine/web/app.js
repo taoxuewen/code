@@ -126,6 +126,9 @@ function renderResult(data) {
     )
     .join("");
 
+  // 模型评估
+  renderEvaluation(data.evaluation);
+
   // 预览表
   const cols = data.columns;
   const thead = `<thead><tr>${cols.map((c) => `<th>${c}</th>`).join("")}</tr></thead>`;
@@ -169,6 +172,66 @@ function renderResult(data) {
 
 function fmt(n) {
   return Number(n).toLocaleString("zh-CN");
+}
+
+// ---------- 模型评估渲染 ----------
+function renderEvaluation(ev) {
+  const card = $("#eval-card");
+  if (!ev) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+  if (!ev["可用"]) {
+    $("#eval-note").textContent = "ℹ️ " + (ev["说明"] || "本次数据无法评估。");
+    $("#eval-metrics").innerHTML = "";
+    $("#eval-deciles").innerHTML = "";
+    return;
+  }
+
+  const s = ev["样本"] || {};
+  $("#eval-note").textContent =
+    `测试集 ${fmt(s["测试集"])} 人（处理组 ${fmt(s["处理组"])} / 对照组 ${fmt(s["对照组"])}）。下列指标越高代表模型越能把券发给“被券打动的人”。`;
+
+  const lift = ev["提升倍数"];
+  const cards = [
+    { label: "Top 档提升倍数", value: lift != null ? lift + "×" : "—", accent: true,
+      hint: "最高分 10% 客户的真实 uplift ÷ 整体平均" },
+    { label: "Qini 系数", value: ev["Qini系数"], hint: ">0 即优于随机发券" },
+    { label: "AUUC", value: ev["AUUC"], hint: "增益曲线下面积，越大越好" },
+    { label: "对照/处理模型 AUC", value: (ev["对照模型AUC"] ?? "—") + " / " + (ev["处理模型AUC"] ?? "—"),
+      hint: "两个子模型的判别力（0.5=随机，1=完美）" },
+  ];
+  $("#eval-metrics").innerHTML = cards
+    .map(
+      (c) => `<div class="stat" title="${c.hint}">
+        <div class="stat__value ${c.accent ? "accent" : ""}">${c.value}</div>
+        <div class="stat__label">${c.label}</div>
+      </div>`
+    )
+    .join("");
+
+  // 分位 uplift 柱（正向蓝、负向红，0 在中线）
+  const rows = ev["分位表"] || [];
+  const maxAbs = Math.max(0.0001, ...rows.map((r) => Math.abs(r["实际uplift"] ?? 0)));
+  $("#eval-deciles").innerHTML = rows
+    .map((r, i) => {
+      const v = r["实际uplift"];
+      if (v == null) {
+        return `<div class="decile"><div class="decile__label">第${i + 1}档</div>
+          <div class="decile__track"></div><div class="decile__val">—</div></div>`;
+      }
+      const w = (Math.abs(v) / maxAbs) * 50; // 半轴最多 50%
+      const bar = v >= 0
+        ? `<div class="decile__bar pos" style="width:${w}%"></div>`
+        : `<div class="decile__bar neg" style="width:${w}%"></div>`;
+      return `<div class="decile">
+        <div class="decile__label">第${i + 1}档</div>
+        <div class="decile__track">${bar}</div>
+        <div class="decile__val">${(v * 100).toFixed(1)}%</div>
+      </div>`;
+    })
+    .join("");
 }
 
 // ---------- 下载（本地生成 Blob，无需服务端存储）----------
